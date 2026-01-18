@@ -42,6 +42,41 @@ void test_translit_mixed_ascii_cyrillic(void)
     TEST_ASSERT_EQUAL_STRING("WiFi: Fyndyk", out);
 }
 
+void test_translit_cyrillic_ghe_upturn(void)
+{
+    char out[64];
+    translit_icao_ru_to_ascii("\xD2\x90\xD0\xB0\xD0\xBD\xD0\xBE\xD0\xBA", out, sizeof(out));
+    TEST_ASSERT_EQUAL_STRING("Ganok", out);
+}
+
+void test_translit_ukrainian_yi(void)
+{
+    char out[64];
+    translit_icao_ru_to_ascii("\xD0\x87\xD0\xB6\xD0\xB0\xD0\xBA", out, sizeof(out));
+    TEST_ASSERT_EQUAL_STRING("Yizhak", out);
+}
+
+void test_translit_belarusian_short_u(void)
+{
+    char out[32];
+    translit_icao_ru_to_ascii("\xD0\x8E\xD0\xBB\xD0\xB0\xD1\x81", out, sizeof(out));
+    TEST_ASSERT_EQUAL_STRING("Ulas", out);
+}
+
+void test_translit_serbian_lj(void)
+{
+    char out[32];
+    translit_icao_ru_to_ascii("\xD0\x89\xD1\x83\xD0\xB1\xD0\xB0\xD0\xB2", out, sizeof(out));
+    TEST_ASSERT_EQUAL_STRING("Ljubav", out);
+}
+
+void test_translit_greek_athina(void)
+{
+    char out[32];
+    translit_icao_ru_to_ascii("\xCE\x91\xCE\xB8\xCE\xAE\xCE\xBD\xCE\xB1", out, sizeof(out));
+    TEST_ASSERT_EQUAL_STRING("Athina", out);
+}
+
 void test_translit_malformed_utf8(void)
 {
     char out[16];
@@ -61,6 +96,11 @@ void setup()
     RUN_TEST(test_translit_shchuka);
     RUN_TEST(test_translit_hardsign_omit);
     RUN_TEST(test_translit_mixed_ascii_cyrillic);
+    RUN_TEST(test_translit_cyrillic_ghe_upturn);
+    RUN_TEST(test_translit_ukrainian_yi);
+    RUN_TEST(test_translit_belarusian_short_u);
+    RUN_TEST(test_translit_serbian_lj);
+    RUN_TEST(test_translit_greek_athina);
     RUN_TEST(test_translit_malformed_utf8);
     exit(UNITY_END());
 }

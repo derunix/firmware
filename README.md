@@ -29,9 +29,10 @@ Meshtastic enables text messaging, location sharing, and telemetry over a decent
 
 ### Display Text
 
-On-device displays for some builds transliterate non-ASCII text to ASCII using an ICAO-style Russian Cyrillic mapping. This
-only affects UI rendering; radio/app payloads remain UTF-8. Limitations: Yo (U+0401/U+0451) maps to E/e, short I
-(U+0419/U+0439) maps to I/i, hard/soft signs (U+042A/U+044A, U+042C/U+044C) are omitted, and other non-ASCII becomes '?'.
+On-device displays for some builds transliterate non-ASCII text to ASCII using an ICAO-style Cyrillic mapping plus basic
+Greek. This only affects UI rendering; radio/app payloads remain UTF-8. Limitations: Yo (U+0401/U+0451) maps to E/e, short
+I (U+0419/U+0439) maps to I/i, hard/soft signs (U+042A/U+044A, U+042C/U+044C) are omitted, extra Cyrillic letters map to
+simple digraphs (e.g., Ye, Yi, Lj), Greek tonos/diaeresis are ignored, and other non-ASCII becomes '?'.
 
 ### Get Started
 

@@ -5,7 +5,8 @@
 
 namespace
 {
-// ICAO-style mapping for Russian Cyrillic.
+// ICAO-style mapping for Cyrillic (Russian plus common non-Russian letters) and basic Greek.
+// Cyrillic:
 // U+0410/U+0430 -> A/a
 // U+0411/U+0431 -> B/b
 // U+0412/U+0432 -> V/v
@@ -39,7 +40,23 @@ namespace
 // U+042F/U+044F -> Ya/ya
 // U+042A/U+044A -> "" (hard sign omitted)
 // U+042C/U+044C -> "" (soft sign omitted)
-static const char *map_ru_icao(uint32_t cp)
+// U+0404/U+0454 -> Ye/ye (Ukrainian/Belarusian Ye)
+// U+0406/U+0456 -> I/i (Ukrainian/Belarusian Byelorussian I)
+// U+0407/U+0457 -> Yi/yi (Ukrainian Yi)
+// U+040E/U+045E -> U/u (Byelorussian short U)
+// U+0490/U+0491 -> G/g (Ukrainian/Belarusian Ghe with upturn)
+// U+0402/U+0452 -> Dj/dj (Serbian/Macedonian)
+// U+0403/U+0453 -> Gj/gj (Macedonian)
+// U+0405/U+0455 -> Dz/dz (Macedonian)
+// U+0408/U+0458 -> J/j (Serbian/Macedonian)
+// U+0409/U+0459 -> Lj/lj (Serbian)
+// U+040A/U+045A -> Nj/nj (Serbian)
+// U+040B/U+045B -> C/c (Serbian)
+// U+040C/U+045C -> Kj/kj (Macedonian)
+// U+040F/U+045F -> Dz/dz (Serbian/Macedonian)
+// Greek: basic monotonic letters map to ASCII; tones/diaeresis are ignored.
+// Beta -> V/v, Eta -> I/i, Theta -> Th/th, Chi -> Ch/ch, Psi -> Ps/ps.
+static const char *map_icao_non_latin(uint32_t cp)
 {
     switch (cp) {
     case 0x0410:
@@ -166,6 +183,202 @@ static const char *map_ru_icao(uint32_t cp)
         return "Ya";
     case 0x044F:
         return "ya";
+    // Extended Cyrillic letters (non-Russian)
+    case 0x0402:
+        return "Dj";
+    case 0x0452:
+        return "dj";
+    case 0x0403:
+        return "Gj";
+    case 0x0453:
+        return "gj";
+    case 0x0404:
+        return "Ye";
+    case 0x0454:
+        return "ye";
+    case 0x0405:
+        return "Dz";
+    case 0x0455:
+        return "dz";
+    case 0x0406:
+        return "I";
+    case 0x0456:
+        return "i";
+    case 0x0407:
+        return "Yi";
+    case 0x0457:
+        return "yi";
+    case 0x0408:
+        return "J";
+    case 0x0458:
+        return "j";
+    case 0x0409:
+        return "Lj";
+    case 0x0459:
+        return "lj";
+    case 0x040A:
+        return "Nj";
+    case 0x045A:
+        return "nj";
+    case 0x040B:
+        return "C";
+    case 0x045B:
+        return "c";
+    case 0x040C:
+        return "Kj";
+    case 0x045C:
+        return "kj";
+    case 0x040E:
+        return "U";
+    case 0x045E:
+        return "u";
+    case 0x040F:
+        return "Dz";
+    case 0x045F:
+        return "dz";
+    case 0x0490:
+        return "G";
+    case 0x0491:
+        return "g";
+    // Greek (monotonic, accents ignored)
+    case 0x0386:
+        return "A";
+    case 0x03AC:
+        return "a";
+    case 0x0388:
+        return "E";
+    case 0x03AD:
+        return "e";
+    case 0x0389:
+        return "I";
+    case 0x03AE:
+        return "i";
+    case 0x038A:
+        return "I";
+    case 0x03AF:
+        return "i";
+    case 0x038C:
+        return "O";
+    case 0x03CC:
+        return "o";
+    case 0x038E:
+        return "Y";
+    case 0x03CD:
+        return "y";
+    case 0x038F:
+        return "O";
+    case 0x03CE:
+        return "o";
+    case 0x0390:
+        return "i";
+    case 0x03B0:
+        return "y";
+    case 0x03AA:
+        return "I";
+    case 0x03CA:
+        return "i";
+    case 0x03AB:
+        return "Y";
+    case 0x03CB:
+        return "y";
+    case 0x0391:
+        return "A";
+    case 0x03B1:
+        return "a";
+    case 0x0392:
+        return "V";
+    case 0x03B2:
+        return "v";
+    case 0x0393:
+        return "G";
+    case 0x03B3:
+        return "g";
+    case 0x0394:
+        return "D";
+    case 0x03B4:
+        return "d";
+    case 0x0395:
+        return "E";
+    case 0x03B5:
+        return "e";
+    case 0x0396:
+        return "Z";
+    case 0x03B6:
+        return "z";
+    case 0x0397:
+        return "I";
+    case 0x03B7:
+        return "i";
+    case 0x0398:
+        return "Th";
+    case 0x03B8:
+        return "th";
+    case 0x0399:
+        return "I";
+    case 0x03B9:
+        return "i";
+    case 0x039A:
+        return "K";
+    case 0x03BA:
+        return "k";
+    case 0x039B:
+        return "L";
+    case 0x03BB:
+        return "l";
+    case 0x039C:
+        return "M";
+    case 0x03BC:
+        return "m";
+    case 0x039D:
+        return "N";
+    case 0x03BD:
+        return "n";
+    case 0x039E:
+        return "X";
+    case 0x03BE:
+        return "x";
+    case 0x039F:
+        return "O";
+    case 0x03BF:
+        return "o";
+    case 0x03A0:
+        return "P";
+    case 0x03C0:
+        return "p";
+    case 0x03A1:
+        return "R";
+    case 0x03C1:
+        return "r";
+    case 0x03A3:
+        return "S";
+    case 0x03C3:
+        return "s";
+    case 0x03C2:
+        return "s";
+    case 0x03A4:
+        return "T";
+    case 0x03C4:
+        return "t";
+    case 0x03A5:
+        return "Y";
+    case 0x03C5:
+        return "y";
+    case 0x03A6:
+        return "F";
+    case 0x03C6:
+        return "f";
+    case 0x03A7:
+        return "Ch";
+    case 0x03C7:
+        return "ch";
+    case 0x03A8:
+        return "Ps";
+    case 0x03C8:
+        return "ps";
+    case 0x03A9:
+        return "O";
+    case 0x03C9:
+        return "o";
     case 0x042A:
     case 0x044A:
     case 0x042C:
@@ -284,7 +497,7 @@ size_t translit_icao_ru_to_ascii(const char *utf8_in, char *out, size_t out_cap)
             continue;
         }
 
-        const char *mapped = map_ru_icao(cp);
+        const char *mapped = map_icao_non_latin(cp);
         if (mapped) {
             if (!append_str(out, out_cap, &out_len, mapped))
                 break;
