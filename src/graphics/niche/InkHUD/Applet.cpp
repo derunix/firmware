@@ -5,6 +5,9 @@
 #include "main.h"
 
 #include "RTC.h"
+#if defined(MESHTASTIC_DISPLAY_TRANSLIT_ICAO)
+#include "utils/translit_icao.h"
+#endif
 
 using namespace NicheGraphics;
 
@@ -327,6 +330,12 @@ InkHUD::AppletFont InkHUD::Applet::getFont()
 // Re-encodes UTF-8 characters to match our 8-bit encoded fonts
 std::string InkHUD::Applet::parse(std::string text)
 {
+#if defined(MESHTASTIC_DISPLAY_TRANSLIT_ICAO)
+    constexpr size_t kTranslitBufSize = 1024;
+    char asciiBuf[kTranslitBufSize];
+    translit_icao_ru_to_ascii(text.c_str(), asciiBuf, sizeof(asciiBuf));
+    text.assign(asciiBuf);
+#endif
     return getFont().decodeUTF8(text);
 }
 

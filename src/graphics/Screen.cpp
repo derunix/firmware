@@ -38,6 +38,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "draw/NodeListRenderer.h"
 #include "draw/NotificationRenderer.h"
 #include "draw/UIRenderer.h"
+#if defined(MESHTASTIC_DISPLAY_TRANSLIT_ICAO)
+#include "utils/translit_icao.h"
+#endif
 #include "modules/CannedMessageModule.h"
 
 #if !MESHTASTIC_EXCLUDE_GPS
@@ -1481,6 +1484,16 @@ int Screen::handleTextMessage(const meshtastic_MeshPacket *packet)
             const meshtastic_Channel channel =
                 channels.getByIndex(packet->channel ? packet->channel : channels.getPrimaryIndex());
             const char *longName = (node && node->has_user) ? node->user.long_name : nullptr;
+#if defined(MESHTASTIC_DISPLAY_TRANSLIT_ICAO)
+            char longNameAscii[128];
+            const char *longNameDisplay = longName;
+            if (longName && longName[0]) {
+                translit_icao_ru_to_ascii(longName, longNameAscii, sizeof(longNameAscii));
+                longNameDisplay = longNameAscii;
+            }
+#else
+            const char *longNameDisplay = longName;
+#endif
 
             const char *msgRaw = reinterpret_cast<const char *>(packet->decoded.payload.bytes);
 
@@ -1547,18 +1560,18 @@ int Screen::handleTextMessage(const meshtastic_MeshPacket *packet)
             } else {
                 // No keyboard active: use regular banner flow, respecting mute settings
                 if (isAlert) {
-                    if (longName && longName[0]) {
-                        snprintf(banner, sizeof(banner), "Alert Received from\n%s", longName);
+                    if (longNameDisplay && longNameDisplay[0]) {
+                        snprintf(banner, sizeof(banner), "Alert Received from\n%s", longNameDisplay);
                     } else {
                         strcpy(banner, "Alert Received");
                     }
                     screen->showSimpleBanner(banner, 3000);
                 } else if (!channel.settings.has_module_settings || !channel.settings.module_settings.is_muted) {
-                    if (longName && longName[0]) {
+                    if (longNameDisplay && longNameDisplay[0]) {
                         if (currentResolution == ScreenResolution::UltraLow) {
                             strcpy(banner, "New Message");
                         } else {
-                            snprintf(banner, sizeof(banner), "New Message from\n%s", longName);
+                            snprintf(banner, sizeof(banner), "New Message from\n%s", longNameDisplay);
                         }
                     } else {
                         strcpy(banner, "New Message");

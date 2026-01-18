@@ -10,6 +10,9 @@
 #include "meshtastic/config.pb.h"
 #include "modules/ExternalNotificationModule.h"
 #include "power.h"
+#if defined(MESHTASTIC_DISPLAY_TRANSLIT_ICAO)
+#include "utils/translit_icao.h"
+#endif
 #include <OLEDDisplay.h>
 #include <graphics/images.h>
 
@@ -503,6 +506,13 @@ std::string sanitizeString(const std::string &input)
 
     // Non-breaking space
     replaceAll(s, "\xC2\xA0", " "); // U+00A0
+
+#if defined(MESHTASTIC_DISPLAY_TRANSLIT_ICAO)
+    constexpr size_t kTranslitBufSize = 1024;
+    char asciiBuf[kTranslitBufSize];
+    translit_icao_ru_to_ascii(s.c_str(), asciiBuf, sizeof(asciiBuf));
+    s.assign(asciiBuf);
+#endif
 
     // Now do your original sanitize pass over the normalized string.
     for (unsigned char uc : s) {

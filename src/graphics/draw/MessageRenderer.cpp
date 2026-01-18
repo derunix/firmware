@@ -15,6 +15,10 @@
 #include "graphics/emotes.h"
 #include "main.h"
 #include "meshUtils.h"
+#if defined(MESHTASTIC_DISPLAY_TRANSLIT_ICAO)
+#include "utils/translit_icao.h"
+#endif
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -31,6 +35,15 @@ namespace graphics
 {
 namespace MessageRenderer
 {
+
+#if defined(MESHTASTIC_DISPLAY_TRANSLIT_ICAO)
+template <size_t N> static void translit_inplace(char (&buf)[N])
+{
+    char tmp[N];
+    const size_t len = translit_icao_ru_to_ascii(buf, tmp, N);
+    std::memcpy(buf, tmp, len + 1);
+}
+#endif
 
 static std::vector<std::string> cachedLines;
 static std::vector<int> cachedHeights;
@@ -501,6 +514,9 @@ void drawTextMessageFrame(OLEDDisplay *display, OLEDDisplayUiState *state, int16
         } else {
             snprintf(titleBuf, sizeof(titleBuf), "Ch%d", currentChannel);
         }
+#if defined(MESHTASTIC_DISPLAY_TRANSLIT_ICAO)
+        translit_inplace(titleBuf);
+#endif
         titleStr = titleBuf;
         break;
     }
@@ -511,6 +527,9 @@ void drawTextMessageFrame(OLEDDisplay *display, OLEDDisplayUiState *state, int16
         } else {
             snprintf(titleBuf, sizeof(titleBuf), "@%08x", currentPeer);
         }
+#if defined(MESHTASTIC_DISPLAY_TRANSLIT_ICAO)
+        translit_inplace(titleBuf);
+#endif
         titleStr = titleBuf;
         break;
     }
@@ -551,6 +570,9 @@ void drawTextMessageFrame(OLEDDisplay *display, OLEDDisplayUiState *state, int16
             } else {
                 snprintf(chanType, sizeof(chanType), "(DM)");
             }
+#if defined(MESHTASTIC_DISPLAY_TRANSLIT_ICAO)
+            translit_inplace(chanType);
+#endif
         }
 
         // Calculate how long ago
@@ -612,6 +634,9 @@ void drawTextMessageFrame(OLEDDisplay *display, OLEDDisplayUiState *state, int16
         if (mine && node_recipient && node_recipient->has_user) {
             strcpy(senderBuf, node_recipient->user.long_name);
         }
+#if defined(MESHTASTIC_DISPLAY_TRANSLIT_ICAO)
+        translit_inplace(senderBuf);
+#endif
 
         // Shrink Sender name if needed
         int availWidth = SCREEN_WIDTH - display->getStringWidth(timeBuf) - display->getStringWidth(chanType) -
@@ -652,9 +677,16 @@ void drawTextMessageFrame(OLEDDisplay *display, OLEDDisplayUiState *state, int16
         ackForLine.push_back(m.ackStatus);
 
         const char *msgText = MessageStore::getText(m);
+        const char *msgForDisplay = msgText;
+#if defined(MESHTASTIC_DISPLAY_TRANSLIT_ICAO)
+        constexpr size_t kTranslitBufSize = (MAX_MESSAGE_SIZE * 4) + 1;
+        char msgAscii[kTranslitBufSize];
+        translit_icao_ru_to_ascii(msgText, msgAscii, sizeof(msgAscii));
+        msgForDisplay = msgAscii;
+#endif
 
         int wrapWidth = mine ? rightTextWidth : leftTextWidth;
-        std::vector<std::string> wrapped = generateLines(display, "", msgText, wrapWidth);
+        std::vector<std::string> wrapped = generateLines(display, "", msgForDisplay, wrapWidth);
         for (auto &ln : wrapped) {
             allLines.push_back(ln);
             isMine.push_back(mine);

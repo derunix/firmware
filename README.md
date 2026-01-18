@@ -27,6 +27,12 @@ This repository contains the official device firmware for Meshtastic, an open-so
 
 Meshtastic enables text messaging, location sharing, and telemetry over a decentralized mesh network, making it ideal for outdoor adventures, emergency preparedness, and remote operations.
 
+### Display Text
+
+On-device displays for some builds transliterate non-ASCII text to ASCII using an ICAO-style Russian Cyrillic mapping. This
+only affects UI rendering; radio/app payloads remain UTF-8. Limitations: Yo (U+0401/U+0451) maps to E/e, short I
+(U+0419/U+0439) maps to I/i, hard/soft signs (U+042A/U+044A, U+042C/U+044C) are omitted, and other non-ASCII becomes '?'.
+
 ### Get Started
 
 - 🔧 **[Building Instructions](https://meshtastic.org/docs/development/firmware/build)** – Learn how to compile the firmware from source.
