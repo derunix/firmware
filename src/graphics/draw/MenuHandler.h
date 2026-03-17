@@ -55,7 +55,8 @@ class menuHandler
         NodeNameLengthMenu,
         FrameToggles,
         DisplayUnits,
-        MessageBubblesMenu
+        MessageBubblesMenu,
+        LowVoltProtectMenu
     };
     static screenMenus menuQueue;
     static uint32_t pickedNodeNum; // node selected by NodePicker for ManageNodeMenu
@@ -106,6 +107,7 @@ class menuHandler
     static void wifiToggleMenu();
     static void screenOptionsMenu();
     static void powerMenu();
+    static void lowVoltProtectMenu();
     static void nodeNameLengthMenu();
     static void frameTogglesMenu();
     static void displayUnitsMenu();

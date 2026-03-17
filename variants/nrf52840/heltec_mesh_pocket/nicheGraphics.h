@@ -16,6 +16,7 @@
 #include "graphics/niche/InkHUD/Applets/User/Positions/PositionsApplet.h"
 #include "graphics/niche/InkHUD/Applets/User/RecentsList/RecentsListApplet.h"
 #include "graphics/niche/InkHUD/Applets/User/ThreadedMessage/ThreadedMessageApplet.h"
+#include "graphics/niche/InkHUD/Applets/User/Battery/BatteryApplet.h"
 
 // Shared NicheGraphics components
 // --------------------------------
@@ -71,6 +72,7 @@ void setupNicheGraphics()
     inkhud->addApplet("Favorites Map", new InkHUD::FavoritesMapApplet);          // -
     inkhud->addApplet("Recents List", new InkHUD::RecentsListApplet);            // -
     inkhud->addApplet("Heard", new InkHUD::HeardApplet, true, false, 0);         // Activated, no autoshow, default on tile 0
+    inkhud->addApplet("Battery", new InkHUD::BatteryApplet, true);              // Activated
 
     // Start running InkHUD
     inkhud->begin();

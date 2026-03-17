@@ -31,6 +31,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "DisplayFormatters.h"
 #include "TimeFormatters.h"
+#include "draw/BatteryRenderer.h"
 #include "draw/ClockRenderer.h"
 #include "draw/DebugRenderer.h"
 #include "draw/MenuHandler.h"
@@ -1126,6 +1127,17 @@ void Screen::setFrames(FrameFocus focus)
         fsi.positions.system = numframes;
         normalFrames[numframes++] = graphics::DebugRenderer::drawSystemScreen;
         indicatorIcons.push_back(icon_system);
+    }
+    // Battery info screens (always shown when battery present)
+    if (powerStatus && powerStatus->getHasBattery()) {
+        normalFrames[numframes++] = graphics::BatteryRenderer::drawBatteryCurrentFrame;
+        indicatorIcons.push_back(icon_battery);
+        normalFrames[numframes++] = graphics::BatteryRenderer::drawBatteryChargeFrame;
+        indicatorIcons.push_back(icon_battery);
+        normalFrames[numframes++] = graphics::BatteryRenderer::drawStatsFrame;
+        indicatorIcons.push_back(icon_battery);
+        normalFrames[numframes++] = graphics::BatteryRenderer::drawGpsStatsFrame;
+        indicatorIcons.push_back(icon_battery);
     }
 #if !defined(DISPLAY_CLOCK_FRAME)
     if (!hiddenFrames.clock) {

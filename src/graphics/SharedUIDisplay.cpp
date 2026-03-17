@@ -104,6 +104,16 @@ void drawCommonHeader(OLEDDisplay *display, int16_t x, int16_t y, const char *ti
     const int screenW = display->getWidth();
     const int screenH = display->getHeight();
 
+    // === Battery State (read early — used for both title area and icon) ===
+    int chargePercent = powerStatus->getBatteryChargePercent();
+    bool isCharging   = powerStatus->getIsCharging();
+    bool usbPowered   = powerStatus->getHasUSB();
+
+    if (chargePercent >= 100)
+        isCharging = false;
+    if (chargePercent == 101)
+        usbPowered = true; // Some devices have no concept of having a USB cable plugged in
+
     if (!force_no_invert) {
         // === Inverted Header Background ===
         if (isInverted) {
@@ -123,27 +133,28 @@ void drawCommonHeader(OLEDDisplay *display, int16_t x, int16_t y, const char *ti
             }
         }
 
-        // === Screen Title ===
+        // === Screen Title — or Battery Voltage on home screen (empty title) ===
         display->setTextAlignment(TEXT_ALIGN_CENTER);
-        display->drawString(SCREEN_WIDTH / 2, y, titleStr);
-        if (config.display.heading_bold) {
-            display->drawString((SCREEN_WIDTH / 2) + 1, y, titleStr);
+        if (titleStr && titleStr[0]) {
+            // Normal screen: show the title
+            display->drawString(SCREEN_WIDTH / 2, y, titleStr);
+            if (config.display.heading_bold) {
+                display->drawString((SCREEN_WIDTH / 2) + 1, y, titleStr);
+            }
+        } else if (chargePercent != 101 && powerStatus->getHasBattery()) {
+            // Home screen (no title text): show only voltage in center title area.
+            // % is already shown on the left side — no duplication.
+            // Use getBatteryVoltageMv() directly — always reliable, no tracker needed.
+            int voltMv = powerStatus->getBatteryVoltageMv();
+            if (voltMv > 100) {
+                char centerStr[12];
+                snprintf(centerStr, sizeof(centerStr), "%d.%02dV",
+                         voltMv / 1000, (voltMv % 1000) / 10);
+                display->drawString(SCREEN_WIDTH / 2, y, centerStr);
+            }
         }
     }
     display->setTextAlignment(TEXT_ALIGN_LEFT);
-
-    // === Battery State ===
-    int chargePercent = powerStatus->getBatteryChargePercent();
-    bool isCharging = powerStatus->getIsCharging();
-    bool usbPowered = powerStatus->getHasUSB();
-
-    if (chargePercent >= 100) {
-        isCharging = false;
-    }
-    if (chargePercent == 101) {
-        usbPowered = true; // Forcing this flag on for the express purpose that some devices have no concept of having a USB cable
-                           // plugged in
-    }
 
     uint32_t now = millis();
 
@@ -204,15 +215,16 @@ void drawCommonHeader(OLEDDisplay *display, int16_t x, int16_t y, const char *ti
     }
 
     if (chargePercent != 101) {
-        // === Battery % Display ===
-        char chargeStr[4];
-        snprintf(chargeStr, sizeof(chargeStr), "%d", chargePercent);
-        int chargeNumWidth = display->getStringWidth(chargeStr);
-        display->drawString(batteryX, textY, chargeStr);
-        display->drawString(batteryX + chargeNumWidth - 1, textY, "%");
+        // === Battery % text — "N%+" when charging (visible on all screens), "N%" otherwise ===
+        char batStr[8];
+        if (isCharging) {
+            snprintf(batStr, sizeof(batStr), "%d%%+", chargePercent);
+        } else {
+            snprintf(batStr, sizeof(batStr), "%d%%", chargePercent);
+        }
+        display->drawString(batteryX, textY, batStr);
         if (isBold) {
-            display->drawString(batteryX + 1, textY, chargeStr);
-            display->drawString(batteryX + chargeNumWidth, textY, "%");
+            display->drawString(batteryX + 1, textY, batStr);
         }
     }
 

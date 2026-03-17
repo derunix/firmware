@@ -27,6 +27,45 @@ This repository contains the official device firmware for Meshtastic, an open-so
 
 Meshtastic enables text messaging, location sharing, and telemetry over a decentralized mesh network, making it ideal for outdoor adventures, emergency preparedness, and remote operations.
 
+## Differences from upstream (derunix fork)
+
+This fork tracks [meshtastic/firmware](https://github.com/meshtastic/firmware) `develop` and adds the following changes:
+
+### Heltec V4 — RF Front End
+- **LNA enabled by default** (cherry-picked from weebl2000/heltec-v4.3-enable-lna-by-default): `LoRaFEMInterface` sets `PA_CTX LOW` at init so the KCT8103L LNA is active on startup. `NodeDB::installDefaultConfig` sets `FEM_LNA_Mode_ENABLED`. The `!= DISABLED` logic in `SX126xInterface` and `AdminModule` ensures the LNA stays on unless explicitly disabled.
+
+### Battery monitoring (`BatteryTracker`)
+New module `src/power/BatteryTracker` tracks battery consumption across charge/discharge cycles without a hardware current sensor:
+- **Activity-based current estimation**: models CPU idle + LoRa TX bursts + GPS + WiFi contributions; constants configurable per variant (`BAT_BASE_CURRENT_MA`, `BAT_TX_CURRENT_MA`, `BAT_GPS_CURRENT_MA`, `BAT_WIFI_CURRENT_MA`)
+- **Capacity learning**: EMA over completed discharge cycles (`soc_start` → `soc_end`); `learnedCapacityMah` converges after 3–5 cycles
+- **Per-cycle log**: up to 5 cycles stored in LittleFS (`/prefs/battery.bin`) — duration, SoC start/end, TX/relay/RX packet counts, GPS active & fix seconds, capacity estimate
+- **Cross-platform storage**: LittleFS (`FSCom`) instead of ESP32-only `Preferences` — works on NRF52, ESP32, STM32
+
+### OLED battery screens (Heltec V4)
+Four new frames registered in `Screen.cpp` when a battery is detected:
+| Screen | Content |
+|--------|---------|
+| Battery 1/2 | Voltage, estimated current, 1/5/15-min averages |
+| Battery 2/2 | Charged mAh, current mAh, used mAh, avg/day, estimated life + cycle count |
+| Packet Stats | Live TX/relay/RX counters + last 4 historical cycles |
+| GPS Stats | Live GPS state (fix/searching/disabled) + per-cycle active%, fix%, duration |
+
+### Status bar improvements
+- **Home screen**: voltage (`3.82V`) shown in the title area instead of a second `%` value
+- **All screens**: charging indicator — `83%+` when USB/charger connected
+- Battery icon (`icon_battery`) added to `images.h`
+
+### Power menu additions
+- **Reset Battery History** — wipes `/prefs/battery.bin` and resets the in-RAM state; confirmation prompt
+- **Low V Protect** — configurable low-voltage shutdown timeout: Off / 5 min / 10 min (default) / 15 min / 30 min; saved in LittleFS
+
+### Low-voltage shutdown fixes
+- **OCV array expanded to 17 points** (`power.h`): range 4250–2700 mV (was 11 points, min 3420 mV). `OCV[NUM_OCV_POINTS]` array size uses the macro instead of hardcoded `11`. Low-battery threshold now correctly triggers at 2700 mV.
+- **Voltage-trend USB detection** (`Power.cpp`): boards without `EXT_PWR_DETECT` (e.g. Heltec V4) detect charging via rising voltage (+5 mV/sample). Counter resets if voltage is rising, preventing false shutdown while charging from a low state.
+
+### InkHUD Battery Applet (Heltec Mesh Pocket)
+`src/graphics/niche/InkHUD/Applets/User/Battery/` — new applet showing voltage, current estimate, charged/remaining mAh, and estimated life.
+
 ### Display Text
 
 On-device displays for some builds transliterate non-ASCII text to ASCII using an ICAO-style Cyrillic mapping plus basic

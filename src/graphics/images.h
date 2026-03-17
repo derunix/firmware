@@ -136,6 +136,18 @@ const uint8_t icon_system[] PROGMEM = {
     0x24  // Row 7: ..#..#..
 };
 
+// 🔋 Battery (8×8)
+const uint8_t icon_battery[] PROGMEM = {
+    0x30, // Row 0: ..##....  terminal bump
+    0x7E, // Row 1: .######.  top frame
+    0x42, // Row 2: .#....#.  sides
+    0x42, // Row 3: .#....#.  sides
+    0x7E, // Row 4: .######.  fill indicator
+    0x42, // Row 5: .#....#.  sides
+    0x42, // Row 6: .#....#.  sides
+    0x7E  // Row 7: .######.  bottom frame
+};
+
 // 🌐 Wi-Fi
 const uint8_t icon_wifi[] PROGMEM = {0b00000000, 0b00011000, 0b00111100, 0b01111110,
                                      0b11011011, 0b00011000, 0b00011000, 0b00000000};

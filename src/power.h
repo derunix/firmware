@@ -10,12 +10,12 @@
 #endif
 
 #ifndef NUM_OCV_POINTS
-#define NUM_OCV_POINTS 11
+#define NUM_OCV_POINTS 17
 #endif
 
 // Device specific curves go in variant.h
 #ifndef OCV_ARRAY
-#define OCV_ARRAY 4190, 4050, 3990, 3890, 3800, 3720, 3630, 3530, 3420, 3300, 3100
+#define OCV_ARRAY 4250, 4200, 4190, 4050, 3990, 3890, 3800, 3720, 3630, 3530, 3420, 3300, 3100, 3000, 2900, 2800, 2700
 #endif
 
 /*Note: 12V lead acid is 6 cells, most board accept only 1 cell LiIon/LiPo*/
@@ -94,7 +94,7 @@ class Power : private concurrency::OSThread
     virtual bool setup();
     virtual int32_t runOnce() override;
     void setStatusHandler(meshtastic::PowerStatus *handler) { statusHandler = handler; }
-    const uint16_t OCV[11] = {OCV_ARRAY};
+    const uint16_t OCV[NUM_OCV_POINTS] = {OCV_ARRAY};
 
   protected:
     meshtastic::PowerStatus *statusHandler;
@@ -119,6 +119,7 @@ class Power : private concurrency::OSThread
     void reboot();
     // open circuit voltage lookup table
     uint8_t low_voltage_counter;
+    int32_t lastBatteryVoltageMv_ = 0; // for voltage-trend USB detection
     uint32_t lastLogTime = 0;
 #ifdef DEBUG_HEAP
     uint32_t lastheap;

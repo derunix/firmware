@@ -23,6 +23,8 @@
 #include "main.h"
 #include "meshUtils.h"
 #include "power/PowerHAL.h"
+#include "power/BatteryTracker.h"
+#include "mesh/RadioLibInterface.h"
 #include "sleep.h"
 
 #if defined(ARCH_PORTDUINO)
@@ -740,6 +742,8 @@ bool Power::setup()
     enabled = found;
     low_voltage_counter = 0;
 
+    BatteryTracker::instance()->setup();
+
     return found;
 }
 
@@ -886,6 +890,22 @@ void Power::readPowerStatus()
 
 #endif
 
+    // Update battery tracker with latest readings
+    {
+        bool charging = (isChargingNow == OptTrue);
+        float voltV   = (batteryVoltageMv > 0) ? batteryVoltageMv / 1000.0f : 0.0f;
+        uint8_t soc   = (batteryChargePercent >= 0) ? (uint8_t)batteryChargePercent : 0;
+        uint32_t txTotal = 0, relayTotal = 0, rxTotal = 0;
+#if !defined(ARCH_PORTDUINO)
+        if (RadioLibInterface::instance) {
+            txTotal    = RadioLibInterface::instance->txGood;
+            relayTotal = RadioLibInterface::instance->txRelay;
+            rxTotal    = RadioLibInterface::instance->rxGood;
+        }
+#endif
+        BatteryTracker::instance()->update(voltV, soc, charging, txTotal, relayTotal, rxTotal);
+    }
+
     // Notify any status instances that are observing us
     const PowerStatus powerStatus2 = PowerStatus(hasBattery, usbPowered, isChargingNow, batteryVoltageMv, batteryChargePercent);
     if (millis() > lastLogTime + 50 * 1000) {
@@ -948,19 +968,38 @@ void Power::readPowerStatus()
 
     // If we have a battery at all and it is less than 0%, force deep sleep if we
     // have more than 10 low readings in a row. NOTE: min LiIon/LiPo voltage
-    // is 2.0 to 2.5V, current OCV min is set to 3100 that is large enough.
+    // is 2.0 to 2.5V, current OCV min is set to 2700 that is large enough.
     //
+    // On boards without a dedicated VBUS detect pin (e.g. Heltec V4), USB presence
+    // is inferred from battery voltage > chargingVolt (~4260mV). When USB is
+    // connected and the battery is still low, isVbusIn() returns false even though
+    // the charger is actively running. Guard against spurious shutdown by tracking
+    // the voltage trend: if voltage is rising we are almost certainly charging.
 
     if (batteryLevel && powerStatus2.getHasBattery() && !powerStatus2.getHasUSB()) {
-        if (batteryLevel->getBattVoltage() < OCV[NUM_OCV_POINTS - 1]) {
-            low_voltage_counter++;
-            LOG_DEBUG("Low voltage counter: %d/10", low_voltage_counter);
-            if (low_voltage_counter > 10) {
-                LOG_INFO("Low voltage detected, trigger deep sleep");
-                powerFSM.trigger(EVENT_LOW_BATTERY);
+        uint8_t protectMins = BatteryTracker::instance()->getLowVoltProtectMins();
+        if (protectMins > 0) {
+            // Convert minutes to reading count threshold (each reading ~ BAT_UPDATE_INTERVAL_S)
+            uint8_t threshold = (uint8_t)((uint32_t)protectMins * 60 / BAT_UPDATE_INTERVAL_S);
+
+            int32_t nowVoltMv = batteryLevel->getBattVoltage();
+            bool voltageRising = (nowVoltMv > 0 && lastBatteryVoltageMv_ > 0 &&
+                                  nowVoltMv > lastBatteryVoltageMv_ + 5);
+            if (nowVoltMv > 0)
+                lastBatteryVoltageMv_ = nowVoltMv;
+
+            if (!voltageRising && nowVoltMv > 0 && nowVoltMv < OCV[NUM_OCV_POINTS - 1]) {
+                low_voltage_counter++;
+                LOG_DEBUG("Low voltage counter: %d/%d (%d min)", low_voltage_counter, threshold, protectMins);
+                if (low_voltage_counter >= threshold) {
+                    LOG_INFO("Low voltage detected, trigger deep sleep");
+                    powerFSM.trigger(EVENT_LOW_BATTERY);
+                }
+            } else {
+                if (low_voltage_counter > 0)
+                    LOG_DEBUG("Low voltage counter reset (volt %dmV, rising=%d)", nowVoltMv, voltageRising);
+                low_voltage_counter = 0;
             }
-        } else {
-            low_voltage_counter = 0;
         }
     }
 }

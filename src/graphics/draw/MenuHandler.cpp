@@ -23,6 +23,7 @@
 #include "modules/ExternalNotificationModule.h"
 #include "modules/KeyVerificationModule.h"
 #include "modules/TraceRouteModule.h"
+#include "power/BatteryTracker.h"
 #include <algorithm>
 #include <array>
 #include <functional>
@@ -2360,9 +2361,9 @@ void menuHandler::screenOptionsMenu()
 void menuHandler::powerMenu()
 {
 
-    enum optionsNumbers { Back, Reboot, Shutdown, MUI };
-    static const char *optionsArray[4] = {"Back"};
-    static int optionsEnumArray[4] = {Back};
+    enum optionsNumbers { Back, Reboot, Shutdown, MUI, ResetBattery, LowVoltProtect };
+    static const char *optionsArray[6] = {"Back"};
+    static int optionsEnumArray[6] = {Back};
     int options = 1;
 
     optionsArray[options] = "Reboot";
@@ -2375,6 +2376,12 @@ void menuHandler::powerMenu()
     optionsArray[options] = "Switch to MUI";
     optionsEnumArray[options++] = MUI;
 #endif
+
+    optionsArray[options] = "Reset Bat History";
+    optionsEnumArray[options++] = ResetBattery;
+
+    optionsArray[options] = "Low V Protect";
+    optionsEnumArray[options++] = LowVoltProtect;
 
     BannerOverlayOptions bannerOptions;
     bannerOptions.message = "Reboot / Shutdown";
@@ -2394,10 +2401,52 @@ void menuHandler::powerMenu()
         } else if (selected == MUI) {
             menuHandler::menuQueue = menuHandler::MuiPicker;
             screen->runNow();
+        } else if (selected == ResetBattery) {
+            menuHandler::showConfirmationBanner("Reset battery\nhistory?", []() {
+                BatteryTracker::instance()->resetHistory();
+                IF_SCREEN(screen->showSimpleBanner("Battery\nHistory Reset", 2000));
+            });
+        } else if (selected == LowVoltProtect) {
+            menuHandler::menuQueue = menuHandler::LowVoltProtectMenu;
+            screen->runNow();
         } else {
             menuQueue = SystemBaseMenu;
             screen->runNow();
         }
+    };
+    screen->showOverlayBanner(bannerOptions);
+}
+
+void menuHandler::lowVoltProtectMenu()
+{
+    // Index maps: 0=Back, 1=Off, 2=5min, 3=10min, 4=15min, 5=30min
+    static const char *kLabels[] = {"Back", "Off", "5 min", "10 min", "15 min", "30 min"};
+    static const uint8_t kMins[] = {0,       0,     5,       10,       15,       30};
+    enum optIdx { Back = 0, Off, Min5, Min10, Min15, Min30 };
+
+    BannerOverlayOptions bannerOptions;
+    bannerOptions.message         = "Low V Protect";
+    bannerOptions.optionsArrayPtr = kLabels;
+    bannerOptions.optionsCount    = 6;
+    // No optionsEnumPtr: callback receives the visual index directly
+
+    // Pre-highlight the current setting
+    uint8_t cur = BatteryTracker::instance()->getLowVoltProtectMins();
+    bannerOptions.InitialSelected = Min10; // default
+    for (int i = Off; i <= Min30; i++) {
+        if (kMins[i] == cur) {
+            bannerOptions.InitialSelected = i;
+            break;
+        }
+    }
+
+    bannerOptions.bannerCallback = [](int selected) -> void {
+        if (selected == Back) {
+            menuHandler::menuQueue = menuHandler::PowerMenu;
+            screen->runNow();
+            return;
+        }
+        BatteryTracker::instance()->setLowVoltProtectMins(kMins[selected]);
     };
     screen->showOverlayBanner(bannerOptions);
 }
@@ -2757,6 +2806,9 @@ void menuHandler::handleMenuSwitch(OLEDDisplay *display)
         break;
     case PowerMenu:
         powerMenu();
+        break;
+    case LowVoltProtectMenu:
+        lowVoltProtectMenu();
         break;
     case FrameToggles:
         frameTogglesMenu();
