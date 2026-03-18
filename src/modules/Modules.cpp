@@ -85,6 +85,9 @@
 #if !MESHTASTIC_EXCLUDE_STOREFORWARD
 #include "modules/StoreForwardModule.h"
 #endif
+#if !defined(MESHTASTIC_EXCLUDE_HYBRIDPOSITION)
+#include "position/HybridPositionModule.h"
+#endif
 #endif
 
 #if !MESHTASTIC_EXCLUDE_EXTERNALNOTIFICATION
@@ -249,6 +252,9 @@ void setupModules()
         storeForwardModule = new StoreForwardModule();
     }
 #endif
+#endif
+#if defined(ESP32) && !defined(MESHTASTIC_EXCLUDE_HYBRIDPOSITION)
+    position::hybridPositionModule = new position::HybridPositionModule();
 #endif
 #if !MESHTASTIC_EXCLUDE_EXTERNALNOTIFICATION
     externalNotificationModule = new ExternalNotificationModule();
