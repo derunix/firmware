@@ -263,7 +263,8 @@ void ExternalNotificationModule::stopNow()
 #ifdef HAS_I2S
     // GPIO0 is used as mclk for I2S audio and set to OUTPUT by the sound library
     // T-Deck uses GPIO0 as trackball button, so restore the mode
-#if defined(T_DECK) || (defined(BUTTON_PIN) && BUTTON_PIN == 0)
+#if (defined(T_DECK) || (defined(BUTTON_PIN) && BUTTON_PIN == 0)) && !defined(M5STACK_CARDPUTER_ADV)
+    // On Cardputer-Adv GPIO0 is the physical button (not I2S MCLK), do not reconfigure
     pinMode(0, INPUT);
 #endif
 #endif

@@ -203,14 +203,24 @@ int32_t AudioModule::runOnce()
             radio_state = RadioState::rx;
 
             // Configure PTT input
+#ifdef M5STACK_CARDPUTER_ADV
+            // BUTTON_PIN = 0 is falsy, so bypass the ternary and use it directly.
+            // Already configured as INPUT_PULLUP by ButtonThread; do not re-pinMode here.
+            LOG_INFO("Init PTT on Pin %u (Cardputer button)", BUTTON_PIN);
+#else
             LOG_INFO("Init PTT on Pin %u", moduleConfig.audio.ptt_pin ? moduleConfig.audio.ptt_pin : PTT_PIN);
             pinMode(moduleConfig.audio.ptt_pin ? moduleConfig.audio.ptt_pin : PTT_PIN, INPUT);
+#endif
 
             firstTime = false;
         } else {
             UIFrameEvent e;
             // Check if PTT is pressed. TODO hook that into Onebutton/Interrupt drive.
+#ifdef M5STACK_CARDPUTER_ADV
+            uint8_t ptt_pin_used = BUTTON_PIN; // GPIO0, active-LOW; bypass falsy-zero check
+#else
             uint8_t ptt_pin_used = moduleConfig.audio.ptt_pin ? moduleConfig.audio.ptt_pin : PTT_PIN;
+#endif
 #ifdef M5STACK_CARDPUTER_ADV
             // BUTTON_PIN (GPIO0) on Cardputer-Adv is active-LOW
             bool pttPressed = (digitalRead(ptt_pin_used) == LOW);
