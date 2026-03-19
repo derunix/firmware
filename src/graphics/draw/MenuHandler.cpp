@@ -93,7 +93,9 @@ void menuHandler::OnboardMessage()
     static const char *optionsArray[] = {"OK", "Got it!"};
     enum optionsNumbers { OK, got };
     BannerOverlayOptions bannerOptions;
-#if HAS_TFT
+#if defined(HAS_PHYSICAL_KEYBOARD)
+    bannerOptions.message = "Welcome to Meshtastic!\n;/. = up/down/arrow\nEnter = select/send\nTab = new message";
+#elif HAS_TFT
     bannerOptions.message = "Welcome to Meshtastic!\nSwipe to navigate and\nlong press to select\nor open a menu.";
 #elif defined(BUTTON_PIN)
     bannerOptions.message = "Welcome to Meshtastic!\nClick to navigate and\nlong press to select\nor open a menu.";

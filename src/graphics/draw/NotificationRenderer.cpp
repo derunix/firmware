@@ -395,10 +395,24 @@ void NotificationRenderer::drawAlertBannerOverlay(OLEDDisplay *display, OLEDDisp
             }
             resetBanner();
             return;
-        } else if ((inEvent.inputEvent == INPUT_BROKER_CANCEL || inEvent.inputEvent == INPUT_BROKER_ALT_LONG) &&
-                   alertBannerUntil != 0) {
-            resetBanner();
-            return;
+        } else if (inEvent.inputEvent == INPUT_BROKER_CANCEL || inEvent.inputEvent == INPUT_BROKER_ALT_LONG) {
+            // Option-banners are always ESC-dismissible: treat ESC as selecting
+            // the first option (typically "OK" / "Back").  Timed banners without
+            // options are also cancellable.  Only permanent info-banners with no
+            // options are exempt (nothing to select there).
+            if (alertBannerOptions > 0) {
+                if (optionsEnumPtr != nullptr) {
+                    alertBannerCallback(optionsEnumPtr[0]);
+                    optionsEnumPtr = nullptr;
+                } else {
+                    alertBannerCallback(0);
+                }
+                resetBanner();
+                return;
+            } else if (alertBannerUntil != 0) {
+                resetBanner();
+                return;
+            }
         }
 
         if (curSelected == -1)

@@ -24,7 +24,11 @@ static uint8_t CardputerTapMod[_TCA8418_NUM_KEYS] = {3, 3, 3, 3, 3, 3, 3, 3, 3, 
                                                      3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
                                                      3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3};
 
-static unsigned char CardputerTapMap[_TCA8418_NUM_KEYS][3] = {{'`', '~', Key::ESC},
+// Layout: [normal, shift, fn]
+// Navigation keys (` ; , . /) are primary (no modifier needed).
+// Their symbol characters are accessed via Fn so they never clash
+// with message composition or menu navigation.
+static unsigned char CardputerTapMap[_TCA8418_NUM_KEYS][3] = {{Key::ESC, '~', '`'},   // ` → ESC | Shift→~ | Fn→`
                                                               {Key::TAB, 0x00, 0x00},
                                                               {0x00, 0x00, 0x00},
                                                               {0x00, 0x00, 0x00},
@@ -67,15 +71,15 @@ static unsigned char CardputerTapMap[_TCA8418_NUM_KEYS][3] = {{'`', '~', Key::ES
                                                               {'0', ')', 0x00},
                                                               {'p', 'P', Key::SEND_PING},
                                                               {'l', 'L', 0x00},
-                                                              {',', '<', Key::LEFT},
+                                                              {Key::LEFT, '<', ','},   // , → ← | Shift→< | Fn→,
                                                               {'_', '-', 0x00},
                                                               {'[', '{', 0x00},
-                                                              {';', ':', Key::UP},
-                                                              {'.', '>', Key::DOWN},
+                                                              {Key::UP, ':', ';'},     // ; → ↑ | Shift→: | Fn→;
+                                                              {Key::DOWN, '>', '.'},   // . → ↓ | Shift→> | Fn→.
                                                               {'=', '+', 0x00},
                                                               {']', '}', 0x00},
                                                               {'\'', '"', 0x00},
-                                                              {'/', '?', Key::RIGHT},
+                                                              {Key::RIGHT, '?', '/'},  // / → → | Shift→? | Fn→/
                                                               {Key::BSP, 0x00, 0x00},
                                                               {'\\', '|', 0x00},
                                                               {Key::SELECT, 0x00, 0x00},
@@ -171,12 +175,9 @@ void CardputerKeyboard::released()
     uint32_t now = millis();
     last_tap = now;
 
-    if (inputBroker->menuMode && modifierFlag == 0) {
-        if (last_key == 0 || last_key == 43 || last_key == 46 || last_key == 47 ||
-            last_key == 51) { // esc, left, up, down, right key
-            modifierFlag = modifierFn;
-        }
-    }
+    // Navigation keys (ESC/arrows) sit at index 0 — no modifier needed.
+    // menuMode auto-apply removed: with the new layout it would incorrectly
+    // select index 2 (the symbol slot) instead of index 0 (the arrow/ESC).
 
     queueEvent(CardputerTapMap[last_key][modifierFlag % CardputerTapMod[last_key]]);
     if (isModifierKey(last_key) == false)
