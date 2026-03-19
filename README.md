@@ -70,6 +70,32 @@ New pipeline in `src/position/` (guarded by `#ifdef ESP32`) tries four position 
 
 Weighted centroid: RSSI-based exponential weights (ref −40 dBm); confidence ≥ 0.7 when ≥ 3 DB matches. Scan interval 60 s, pipeline minimum interval 30 s. All thresholds overridable via `-D` flags in `platformio.ini`.
 
+### M5Stack Cardputer-Adv (ESP32-S3FN8 + Cap LoRa868)
+
+New board target `m5stack-cardputer-adv` for the M5Stack Cardputer fitted with the Cap LoRa868 module (SX1262 radio + ATGM336H-6N GPS):
+
+**Hardware:**
+- ESP32-S3FN8 @ 240 MHz, 8 MB flash, **no PSRAM** (`-DBOARD_HAS_PSRAM=0`, no `qio_opi`)
+- TCA8418 7×8 key matrix (56-key QWERTY keyboard) on I2C with `KB_INT` interrupt pin
+- SX1262 LoRa transceiver (Cap LoRa868), ATGM336H-6N GPS
+
+**Stability fixes:**
+- **TWDT crash fix**: removed `memory_type: qio_opi` from board JSON — the chip has no OPI PSRAM, causing NimBLE to stall during memory init and trip the 5 s watchdog at ~150 s uptime
+- **WifiScanner BLE guard**: `WiFi.mode()` calls are now skipped while BLE controller is initialising (`esp_bt_controller_get_status() != IDLE`); deferred `WiFi.mode(OFF)` via `pendingModeOff_` flag when BLE is busy post-scan; `esp_task_wdt_reset()` wraps every blocking `WiFi.mode()` call
+
+**Keyboard responsiveness:**
+- `KB_INT` FALLING interrupt attached after `cardKbI2cImpl->init()` — key presses wake `runOnce()` immediately instead of waiting for the poll timer
+- `KbI2cBase::runOnce()` fallback poll interval reduced 300 ms → 30 ms
+- After `clearInt()`, FIFO is re-checked and `runOnce()` returns 0 if new events arrived during dispatch — prevents missed keys when INT stays low
+
+**Text input:**
+- Welcome banner "OK" / Enter fixed: `ui->getUiState()->lastUpdate = 0` forces immediate frame draw so the overlay callback processes the SELECT event in the same tick
+- **EN/RU keyboard layout** (`Opt+Alt` to toggle):
+  - Russian QWERTY table (a–z / A–Z → UTF-8 Cyrillic) inserted directly into `freetext` preserving 2-byte sequences
+  - Backspace is UTF-8-aware: walks back over continuation bytes to delete the whole Cyrillic glyph
+  - Layout badge (**EN** / **RU**) + `Opt+Alt` hint shown in the bottom bar of the text-input screen
+  - `OLED_RU` font enabled so Cyrillic renders correctly on the OLED display
+
 ### Status bar improvements
 - **Home screen**: voltage (`3.82V`) shown in the title area instead of a second `%` value
 - **All screens**: charging indicator — `83%+` when USB/charger connected
