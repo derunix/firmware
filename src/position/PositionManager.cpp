@@ -3,9 +3,14 @@
 #include "NodeDB.h"
 #include "RTC.h"
 #include "configuration.h"
+#include "mesh/generated/meshtastic/config.pb.h"
 #include "mesh/generated/meshtastic/mesh.pb.h"
 #include <string.h>
 #include <math.h>
+
+// Shorthand for GPS-mode enum values (C enum — values keep their full name).
+static constexpr meshtastic_Config_PositionConfig_GpsMode kGpsModeDisabled =
+    meshtastic_Config_PositionConfig_GpsMode_DISABLED;
 
 #ifndef MESHTASTIC_EXCLUDE_GPS
 #include "gps/GPS.h"
@@ -39,6 +44,29 @@ int32_t PositionManager::runOnce()
     ++runCount_;
     pipelineErrors_ = 0;
 
+    // ── Respect device position config ───────────────────────────────────────
+    //
+    // fixed_position: user set a manual coordinate — no active positioning
+    // needed.  Sleep long and skip everything to save power.
+    if (config.position.fixed_position) {
+        LOG_DEBUG("PositionManager: fixed_position set, sleeping\n");
+        if (scanner_) scanner_->setScanInterval(1800000U); // 30 min
+        return 60000; // re-check config every minute
+    }
+
+    // Derive runtime intervals from position config.
+    //   position_broadcast_secs: how often the node broadcasts its position
+    //     → no need to update more often than we broadcast
+    //   gps_update_interval: how often GPS tries to get a fix
+    //     → no need to scan Wi-Fi faster than GPS updates anyway
+    const uint32_t broadcastSecs =
+        config.position.position_broadcast_secs > 0
+        ? config.position.position_broadcast_secs : 900U; // default 15 min
+
+    const uint32_t gpsSecs =
+        config.position.gps_update_interval > 0
+        ? config.position.gps_update_interval : 30U; // default 30 s
+
     // ── Collect latest Wi-Fi scan results if ready ────────────────────────────
     if (scanner_ && scanner_->scanComplete()) {
         obsCount_ = scanner_->takeResults(obs_, WIFI_GEO_SCAN_TOP_N);
@@ -46,8 +74,10 @@ int32_t PositionManager::runOnce()
 
     // ── Priority pipeline ─────────────────────────────────────────────────────
     PositionEstimate candidate;
+    bool gnssActive = false;
 
     if (tryGnss(candidate)) {
+        gnssActive = true;
         LOG_DEBUG("PositionManager: source=GNSS conf=%u\n", candidate.confidence);
 #if ENABLE_WIFI_DB_LEARNING
         learnFromGnss(candidate);
@@ -66,18 +96,39 @@ int32_t PositionManager::runOnce()
                   (unsigned long)(getTime() - candidate.timestamp_sec));
     } else {
         LOG_INFO("PositionManager: no position available\n");
-        return (int32_t)HYBRIDPOS_MIN_UPDATE_INTERVAL_MS;
     }
 
-    best_ = candidate;
-
-    // Persist last-known only if this is a "real" fix (not already last-known).
-    if (candidate.source != PositionSource::LastKnown) {
-        lastKnown_ = candidate;
+    if (candidate.valid()) {
+        best_ = candidate;
+        if (candidate.source != PositionSource::LastKnown)
+            lastKnown_ = candidate;
+        commitToNodeDb(best_);
     }
 
-    commitToNodeDb(best_);
-    return (int32_t)HYBRIDPOS_MIN_UPDATE_INTERVAL_MS;
+    // ── Adaptive Wi-Fi scan interval ─────────────────────────────────────────
+    // When GNSS is active it is already our position source; Wi-Fi scanning is
+    // then only needed for DB learning.  Slow down to broadcast cadence to
+    // save power.  When GNSS is absent, Wi-Fi is our only positioning source
+    // so we scan at the GPS-update rate (same cadence the user configured for
+    // how often they expect a position fix).
+    if (scanner_) {
+        uint32_t scanMs;
+        if (gnssActive) {
+            // GNSS provides the fix — only scan for learning; once per broadcast cycle
+            scanMs = max((uint32_t)WIFI_GEO_SCAN_INTERVAL_MS, (uint32_t)(broadcastSecs * 1000UL));
+        } else {
+            // Wi-Fi is our positioning source — scan at GPS-update rate
+            scanMs = max((uint32_t)WIFI_GEO_SCAN_INTERVAL_MS, (uint32_t)(gpsSecs * 1000UL));
+        }
+        scanner_->setScanInterval(scanMs);
+    }
+
+    // ── Pipeline update interval ──────────────────────────────────────────────
+    // Run no more often than half the broadcast interval (fresh data before
+    // each broadcast), but never below the compile-time minimum.
+    const uint32_t updateMs = max((uint32_t)HYBRIDPOS_MIN_UPDATE_INTERVAL_MS,
+                                  (uint32_t)(broadcastSecs * 500UL));
+    return (int32_t)updateMs;
 }
 
 // ─── providers ───────────────────────────────────────────────────────────────
@@ -87,6 +138,10 @@ bool PositionManager::tryGnss(PositionEstimate &out)
 #ifdef MESHTASTIC_EXCLUDE_GPS
     return false;
 #else
+    // Respect the GPS mode setting — if GPS is disabled by the user, don't
+    // try to read from it even if the hardware is present.
+    if (config.position.gps_mode == kGpsModeDisabled) return false;
+
     if (!gps || !gps->isConnected() || !gps->hasLock()) return false;
     if (!gnssIsValid()) return false;
 
