@@ -1130,6 +1130,7 @@ void Screen::setFrames(FrameFocus focus)
     }
     // Battery info screens (always shown when battery present)
     if (powerStatus && powerStatus->getHasBattery()) {
+        fsi.positions.battery = numframes;
         normalFrames[numframes++] = graphics::BatteryRenderer::drawBatteryCurrentFrame;
         indicatorIcons.push_back(icon_battery);
         normalFrames[numframes++] = graphics::BatteryRenderer::drawBatteryChargeFrame;
@@ -1835,6 +1836,10 @@ int Screen::handleInputEvent(const InputEvent *event)
                     menuHandler::nodeListMenu();
                 } else if (this->ui->getUiState()->currentFrame == framesetInfo.positions.wifi) {
                     menuHandler::wifiBaseMenu();
+                } else if (framesetInfo.positions.battery != 255 &&
+                           this->ui->getUiState()->currentFrame >= framesetInfo.positions.battery &&
+                           this->ui->getUiState()->currentFrame <= framesetInfo.positions.battery + 3) {
+                    menuHandler::powerMenu();
                 }
             } else if (event->inputEvent == INPUT_BROKER_BACK) {
                 showFrame(FrameDirection::PREVIOUS);

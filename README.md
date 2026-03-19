@@ -50,6 +50,26 @@ Four new frames registered in `Screen.cpp` when a battery is detected:
 | Packet Stats | Live TX/relay/RX counters + last 4 historical cycles |
 | GPS Stats | Live GPS state (fix/searching/disabled) + per-cycle active%, fix%, duration |
 
+### Hybrid positioning subsystem (ESP32)
+
+New pipeline in `src/position/` (guarded by `#ifdef ESP32`) tries four position sources in order:
+
+| Priority | Source | Condition |
+|----------|--------|-----------|
+| 1 | GNSS | Valid fix (HDOP ≤ 2.0, ≥ 4 sats) |
+| 2 | Local Wi-Fi DB | ≥ 1 known BSSID visible |
+| 3 | Remote HTTP geo API | `ENABLE_REMOTE_WIFI_GEO=1` (off by default) |
+| 4 | Last-known fallback | Age ≤ 1 h |
+
+**Components:**
+- **`WifiScanner`** — async `WiFi.scanNetworks()`, top-12 by RSSI, optional radio-off/restore
+- **`WifiDb`** — LittleFS flat-file (`/prefs/wifidb.bin`), 24-byte records, EMA coordinate smoothing (α=25%), LRU eviction, up to 512 entries (~12 KB); seed BSSIDs importable via `WifiDbSeed.h`
+- **`WifiGeoClient`** — `HTTPClient` lookup against Google Geolocation API format endpoint; disabled by default
+- **`PositionManager`** — `OSThread` orchestrating the pipeline; auto-learns AP coordinates when GNSS fix is valid, stationary (≤ 3 m/s), and fresh (≤ 30 s)
+- **`HybridPositionModule`** — `MeshModule` entry point registered in `Modules.cpp`; broadcasts an 18-byte `HybridPosDiagPacket` on `PRIVATE_APP` portnum
+
+Weighted centroid: RSSI-based exponential weights (ref −40 dBm); confidence ≥ 0.7 when ≥ 3 DB matches. Scan interval 60 s, pipeline minimum interval 30 s. All thresholds overridable via `-D` flags in `platformio.ini`.
+
 ### Status bar improvements
 - **Home screen**: voltage (`3.82V`) shown in the title area instead of a second `%` value
 - **All screens**: charging indicator — `83%+` when USB/charger connected
@@ -58,6 +78,7 @@ Four new frames registered in `Screen.cpp` when a battery is detected:
 ### Power menu additions
 - **Reset Battery History** — wipes `/prefs/battery.bin` and resets the in-RAM state; confirmation prompt
 - **Low V Protect** — configurable low-voltage shutdown timeout: Off / 5 min / 10 min (default) / 15 min / 30 min; saved in LittleFS
+- **Battery screen context menu** — holding the select button on any of the 4 battery/stats frames opens the Power Menu (reboot, shutdown, reset battery history, low-V protect). Fixed missing `battery` position in `FramePositions` and missing input handler branch in `handleInputEvent()`.
 
 ### Low-voltage shutdown fixes
 - **OCV array expanded to 17 points** (`power.h`): range 4250–2700 mV (was 11 points, min 3420 mV). `OCV[NUM_OCV_POINTS]` array size uses the macro instead of hardcoded `11`. Low-battery threshold now correctly triggers at 2700 mV.
