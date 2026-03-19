@@ -45,6 +45,26 @@ extern MessageStore messageStore;
 // Remove Canned message screen if no action is taken for some milliseconds
 #define INACTIVATE_AFTER_MS 20000
 
+// ── Russian QWERTY layout ─────────────────────────────────────────────────────
+// Returns the UTF-8 string for the Russian letter mapped to the given Latin key.
+// Handles both lower- and upper-case input; returns nullptr for non-letter input.
+static const char *ruQwerty(unsigned char c)
+{
+    // clang-format off
+    // Index = letter - 'a' (or - 'A'), values are UTF-8 Cyrillic strings.
+    // Order: a b c d e f g h i j k l m n o p q r s t u v w x y z
+    static const char * const lower[26] = {
+        "ф","и","с","в","у","а","п","р","ш","о","л","д","ь","т","щ","з","й","к","ы","е","г","м","ц","ч","н","я"
+    };
+    static const char * const upper[26] = {
+        "Ф","И","С","В","У","А","П","Р","Ш","О","Л","Д","Ь","Т","Щ","З","Й","К","Ы","Е","Г","М","Ц","Ч","Н","Я"
+    };
+    // clang-format on
+    if (c >= 'a' && c <= 'z') return lower[c - 'a'];
+    if (c >= 'A' && c <= 'Z') return upper[c - 'A'];
+    return nullptr;
+}
+
 // Tokenize a message string into emote/text segments
 static std::vector<std::pair<bool, String>> tokenizeMessageWithEmotes(const char *msg)
 {
@@ -411,6 +431,13 @@ int CannedMessageModule::handleInputEvent(const InputEvent *event)
     // Block ALL input if an alert banner is active
     if (screen && screen->isOverlayBannerShowing()) {
         return 0;
+    }
+
+    // Locale toggle (Opt+Alt): works in any state
+    if (event->kbchar == INPUT_BROKER_LOCALE_TOGGLE) {
+        kbLocale = kbLocale ? 0 : 1;
+        if (screen) screen->forceDisplay();
+        return 1;
     }
 
     // Tab key: Always allow switching between canned/destination screens
@@ -976,6 +1003,34 @@ bool CannedMessageModule::handleFreeTextInput(const InputEvent *event)
         return handleTabSwitch(event); // Reuse tab logic
     }
 
+    // Russian layout: translate Latin letter to Cyrillic UTF-8 and insert directly
+#if defined(HAS_PHYSICAL_KEYBOARD)
+    if (kbLocale == 1) {
+        const char *ruStr = ruQwerty(event->kbchar);
+        if (ruStr && ruStr[0]) {
+            String rs(ruStr);
+            unsigned int len = rs.length(); // always 2 for Cyrillic
+            if (this->cursor == this->freetext.length()) {
+                this->freetext += rs;
+            } else {
+                this->freetext = this->freetext.substring(0, this->cursor) + rs +
+                                 this->freetext.substring(this->cursor);
+            }
+            this->cursor += len;
+            const uint16_t maxBytes = 200 - (moduleConfig.canned_message.send_bell ? 1 : 0);
+            if (this->freetext.length() > maxBytes) {
+                this->freetext = this->freetext.substring(0, maxBytes);
+                if (this->cursor > maxBytes) this->cursor = maxBytes;
+            }
+            UIFrameEvent e;
+            e.action = UIFrameEvent::Action::REGENERATE_FRAMESET;
+            this->lastTouchMillis = millis();
+            notifyObservers(&e);
+            return true;
+        }
+    }
+#endif
+
     // Printable ASCII (add char to draft)
     if (event->kbchar >= 32 && event->kbchar <= 126) {
         payload = event->kbchar;
@@ -1353,18 +1408,17 @@ int32_t CannedMessageModule::runOnce()
         if (this->runState == CANNED_MESSAGE_RUN_STATE_FREETEXT) {
             e.action = UIFrameEvent::Action::REGENERATE_FRAMESET;
             switch (this->payload) {
-            case 0x08: // backspace
-                if (this->freetext.length() > 0) {
-                    if (this->cursor > 0) {
-                        if (this->cursor == this->freetext.length()) {
-                            this->freetext = this->freetext.substring(0, this->freetext.length() - 1);
-                        } else {
-                            this->freetext = this->freetext.substring(0, this->cursor - 1) +
-                                             this->freetext.substring(this->cursor, this->freetext.length());
-                        }
-                        this->cursor--;
+            case 0x08: // backspace — UTF-8-aware: deletes the full multibyte char
+                if (this->freetext.length() > 0 && this->cursor > 0) {
+                    // Walk back past any UTF-8 continuation bytes (0x80–0xBF)
+                    unsigned int deleteStart = this->cursor - 1;
+                    while (deleteStart > 0 &&
+                           (static_cast<uint8_t>(this->freetext[deleteStart]) & 0xC0) == 0x80) {
+                        deleteStart--;
                     }
-                } else {
+                    this->freetext = this->freetext.substring(0, deleteStart) +
+                                     this->freetext.substring(this->cursor);
+                    this->cursor = deleteStart;
                 }
                 break;
             case INPUT_BROKER_MSG_TAB: // Tab key: handled by input handler
@@ -2037,6 +2091,42 @@ void CannedMessageModule::drawFrame(OLEDDisplay *display, OLEDDisplayUiState *st
             );
         }
 #endif
+
+#if defined(HAS_PHYSICAL_KEYBOARD)
+        // ── Locale badge (bottom-right) + hint (bottom-left) ─────────────────
+        {
+            display->setFont(FONT_SMALL);
+            display->setTextAlignment(TEXT_ALIGN_LEFT);
+
+            const char *label   = (kbLocale == 1) ? "RU" : "EN";
+            const int16_t padX  = 3;
+            const int16_t padY  = 2;
+            const int16_t r     = 3;
+            const int16_t th    = FONT_HEIGHT_SMALL;
+            const int16_t tw    = display->getStringWidth(label);
+            const int16_t bw    = tw + padX * 2;
+            const int16_t bh    = th + padY * 2;
+            const int16_t bx    = x + display->getWidth() - bw - 2;
+            const int16_t by    = y + display->getHeight() - bh - 2;
+
+            // Filled rounded box
+            display->setColor(WHITE);
+            display->fillRect(bx + r, by, bw - r * 2, bh);
+            display->fillRect(bx, by + r, r, bh - r * 2);
+            display->fillRect(bx + bw - r, by + r, r, bh - r * 2);
+            display->fillCircle(bx + r, by + r, r);
+            display->fillCircle(bx + bw - r - 1, by + r, r);
+            display->fillCircle(bx + r, by + bh - r - 1, r);
+            display->fillCircle(bx + bw - r - 1, by + bh - r - 1, r);
+            display->setColor(BLACK);
+            display->drawString(bx + padX, by + padY, label);
+
+            // "Opt+Alt" hint to the left of the badge
+            display->setColor(WHITE);
+            display->drawString(x + 2, by + padY, "Opt+Alt");
+        }
+#endif
+
         // Draw Free Text input with multi-emote support and proper line wrapping
         display->setColor(WHITE);
         {

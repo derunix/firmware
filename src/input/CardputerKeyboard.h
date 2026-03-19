@@ -23,4 +23,6 @@ class CardputerKeyboard : public TCA8418KeyboardBase
     uint32_t last_tap;
     uint8_t char_idx;
     int32_t tap_interval;
+    bool optHeld_;          ///< true while Opt is physically held (for Opt+Alt combo)
+    uint32_t optHeldTime_;  ///< millis() when Opt was pressed
 };

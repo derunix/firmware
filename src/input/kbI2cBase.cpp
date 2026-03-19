@@ -345,6 +345,10 @@ int32_t KbI2cBase::runOnce()
                 e.inputEvent = INPUT_BROKER_FN_F5;
                 e.kbchar = 0x00;
                 break;
+            case TCA8418KeyboardBase::LOCALE_TOGGLE:
+                e.inputEvent = INPUT_BROKER_ANYKEY;
+                e.kbchar = INPUT_BROKER_LOCALE_TOGGLE;
+                break;
             default:
                 if (nextEvent > 127) {
                     e.inputEvent = INPUT_BROKER_NONE;

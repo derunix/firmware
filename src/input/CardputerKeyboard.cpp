@@ -87,7 +87,7 @@ static unsigned char CardputerTapMap[_TCA8418_NUM_KEYS][3] = {{Key::ESC, '~', '`
 
 CardputerKeyboard::CardputerKeyboard()
     : TCA8418KeyboardBase(_TCA8418_ROWS, _TCA8418_COLS), modifierFlag(0), last_modifier_time(0), last_key(-1), next_key(-1),
-      last_tap(0L), char_idx(0), tap_interval(0)
+      last_tap(0L), char_idx(0), tap_interval(0), optHeld_(false), optHeldTime_(0)
 {
     reset();
 }
@@ -134,6 +134,27 @@ void CardputerKeyboard::pressed(uint8_t key)
     }
 
     next_key = row * _TCA8418_COLS + col;
+
+    // ── Opt key: arm the Opt+Alt combo ───────────────────────────────────────
+    if (next_key == modifierOptKey) {
+        optHeld_     = true;
+        optHeldTime_ = millis();
+        state        = Held;
+        last_key     = next_key;
+        return;
+    }
+
+    // ── Alt key while Opt is held within timeout: toggle locale ──────────────
+    if (next_key == modifierAltKey && optHeld_ && (millis() - optHeldTime_ < 2000U)) {
+        optHeld_ = false;
+        queueEvent(Key::LOCALE_TOGGLE);
+        state = Busy; // suppress release emission for both keys
+        return;
+    }
+
+    // Any other key clears optHeld_
+    optHeld_ = false;
+
     state = Held;
 
     uint32_t now = millis();
@@ -162,6 +183,7 @@ void CardputerKeyboard::pressed(uint8_t key)
 
 void CardputerKeyboard::released()
 {
+    optHeld_ = false; // clear combo arm on any key release
     if (state != Held) {
         return;
     }

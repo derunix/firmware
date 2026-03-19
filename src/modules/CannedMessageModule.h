@@ -187,6 +187,9 @@ class CannedMessageModule : public SinglePortModule, public Observable<const UIF
     int charSet = 0; // 0=ABC, 1=123
 #endif
 
+    // Physical-keyboard locale: 0=EN, 1=RU (persists within session)
+    uint8_t kbLocale = 0;
+
     void updateState(cannedMessageModuleRunState, bool shouldRequestFocus = false);
 
     bool isUpEvent(const InputEvent *event);
