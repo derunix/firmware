@@ -34,6 +34,11 @@ class WifiScanner : private concurrency::OSThread {
     // Force an immediate scan on the next runOnce() tick.
     void triggerScan() { forceScan_ = true; }
 
+    // Change the interval between scans at runtime.
+    // Clamped to [30 s, 30 min].  If the next scheduled scan would now be
+    // further away than the new interval allows, it is rescheduled sooner.
+    void setScanInterval(uint32_t ms);
+
   protected:
     int32_t runOnce() override;
 
@@ -43,13 +48,15 @@ class WifiScanner : private concurrency::OSThread {
     static uint8_t bssidToBytes(int networkIdx, uint8_t out[6]);
 
     WifiObservation buf_[WIFI_GEO_SCAN_TOP_N]; ///< result buffer
-    uint8_t         count_       = 0;
-    bool            ready_       = false;
-    bool            scanning_    = false;
-    bool            forceScan_   = false;
-    bool            wifiWasOff_  = false;   ///< we enabled WiFi; must restore
-    uint32_t        scanStartMs_ = 0;
-    uint32_t        nextScanMs_  = 0;
+    uint8_t         count_           = 0;
+    bool            ready_           = false;
+    bool            scanning_        = false;
+    bool            forceScan_       = false;
+    bool            wifiWasOff_      = false; ///< we enabled WiFi; must restore
+    bool            pendingModeOff_  = false; ///< deferred WiFi.mode(OFF) when BLE was busy
+    uint32_t        scanStartMs_     = 0;
+    uint32_t        nextScanMs_      = 0;
+    uint32_t        scanIntervalMs_  = WIFI_GEO_SCAN_INTERVAL_MS;
 };
 
 } // namespace position

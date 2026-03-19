@@ -365,6 +365,20 @@ void InputBroker::Init()
 #endif
         cardKbI2cImpl = new CardKbI2cImpl();
         cardKbI2cImpl->init();
+#ifdef KB_INT
+        // TCA8418 drives KB_INT low when a key event is queued.
+        // Wake the polling thread immediately instead of waiting up to 300 ms.
+        pinMode(KB_INT, INPUT_PULLUP);
+        attachInterrupt(
+            digitalPinToInterrupt(KB_INT),
+            []() {
+                cardKbI2cImpl->setIntervalFromNow(0);
+                runASAP = true;
+                BaseType_t higherWake = 0;
+                concurrency::mainDelay.interruptFromISR(&higherWake);
+            },
+            FALLING);
+#endif
 #if defined(M5STACK_UNITC6L)
         i2cButton = new i2cButtonThread("i2cButtonThread");
 #endif

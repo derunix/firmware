@@ -3,6 +3,8 @@
 #include "configuration.h"
 #include <WiFi.h>
 #include <algorithm>
+#include <esp_bt.h>
+#include <esp_task_wdt.h>
 #include <string.h>
 
 namespace position {
@@ -32,7 +34,9 @@ WifiScanner::~WifiScanner()
         WiFi.scanDelete();
     }
     if (wifiWasOff_) {
+        esp_task_wdt_reset();
         WiFi.mode(WIFI_OFF);
+        esp_task_wdt_reset();
     }
 }
 
@@ -53,6 +57,19 @@ int32_t WifiScanner::runOnce()
 {
     uint32_t now = msNow();
 
+    // ── Retry deferred WiFi.mode(OFF) once BLE is no longer holding the radio ─
+    if (pendingModeOff_) {
+        if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_IDLE) {
+            return 500; // BLE still busy, check again soon
+        }
+        esp_task_wdt_reset();
+        WiFi.mode(WIFI_OFF);
+        esp_task_wdt_reset();
+        wifiWasOff_     = false;
+        pendingModeOff_ = false;
+        LOG_DEBUG("WifiScanner: deferred WiFi.mode(OFF) complete\n");
+    }
+
     // ── Check if a running scan has finished ─────────────────────────────────
     if (scanning_) {
         int16_t status = WiFi.scanComplete();
@@ -62,10 +79,12 @@ int32_t WifiScanner::runOnce()
                 WiFi.scanDelete();
                 scanning_ = false;
                 if (wifiWasOff_) {
+                    esp_task_wdt_reset();
                     WiFi.mode(WIFI_OFF);
+                    esp_task_wdt_reset();
                     wifiWasOff_ = false;
                 }
-                nextScanMs_ = now + WIFI_GEO_SCAN_INTERVAL_MS;
+                nextScanMs_ = now + scanIntervalMs_;
             }
             return 500; // check again in 500 ms
         }
@@ -79,7 +98,7 @@ int32_t WifiScanner::runOnce()
         return (int32_t)(nextScanMs_ - now);
     }
     forceScan_  = false;
-    nextScanMs_ = now + WIFI_GEO_SCAN_INTERVAL_MS;
+    nextScanMs_ = now + scanIntervalMs_;
     startAsyncScan();
     return 500; // first check-back
 }
@@ -88,13 +107,28 @@ int32_t WifiScanner::runOnce()
 
 void WifiScanner::startAsyncScan()
 {
+    // Skip scan if BLE is initializing or running: WiFi.mode() transitions
+    // stall while the BLE stack holds the shared radio coexistence lock,
+    // which is long enough to trip the Task Watchdog Timer.
+    // isActive() is false during NimBLE init (bleServer not yet created), so
+    // check the raw BT controller status which covers the full init window.
+    if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_IDLE) {
+        LOG_DEBUG("WifiScanner: BLE busy (status=%d), deferring scan\n",
+                  (int)esp_bt_controller_get_status());
+        nextScanMs_ = (uint32_t)millis() + 5000; // retry in 5 s
+        return;
+    }
+
     WiFiMode_t mode = WiFi.getMode();
     wifiWasOff_ = false;
 
     if (mode == WIFI_OFF) {
 #if WIFI_GEO_SCAN_WHEN_RADIO_OFF
         LOG_DEBUG("WifiScanner: WiFi was OFF, enabling STA for scan\n");
+        // WiFi.mode() is a blocking call that can take 1-3 s — reset WDT first.
+        esp_task_wdt_reset();
         WiFi.mode(WIFI_STA);
+        esp_task_wdt_reset();
         wifiWasOff_ = true;
 #else
         LOG_DEBUG("WifiScanner: WiFi is OFF, skipping scan\n");
@@ -115,8 +149,18 @@ void WifiScanner::collectAsyncResults()
     scanning_ = false;
 
     if (wifiWasOff_) {
-        WiFi.mode(WIFI_OFF);
-        wifiWasOff_ = false;
+        // WiFi.mode(WIFI_OFF) is blocking and stalls when BLE is using the
+        // shared radio coexistence lock.  Defer the mode-off if BLE is active.
+        if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_IDLE) {
+            LOG_DEBUG("WifiScanner: BLE busy, deferring WiFi.mode(OFF)\n");
+            // Leave wifiWasOff_ true; runOnce will retry via pendingModeOff_.
+            pendingModeOff_ = true;
+        } else {
+            esp_task_wdt_reset();
+            WiFi.mode(WIFI_OFF);
+            esp_task_wdt_reset();
+            wifiWasOff_ = false;
+        }
     }
 
     if (n < 0) {
@@ -186,6 +230,22 @@ uint8_t WifiScanner::bssidToBytes(int networkIdx, uint8_t out[6])
         memset(out, 0, 6);
     }
     return 6;
+}
+
+void WifiScanner::setScanInterval(uint32_t ms)
+{
+    // Clamp: minimum 30 s (allow ADC / boot to settle), maximum 30 min.
+    if (ms < 30000U)   ms = 30000U;
+    if (ms > 1800000U) ms = 1800000U;
+    if (ms == scanIntervalMs_) return;
+
+    scanIntervalMs_ = ms;
+    LOG_DEBUG("WifiScanner: scan interval -> %lu ms\n", (unsigned long)ms);
+
+    // If the next scan was scheduled further than the new interval, pull it in.
+    uint32_t now = msNow();
+    if (!scanning_ && nextScanMs_ > now + ms)
+        nextScanMs_ = now + ms;
 }
 
 } // namespace position

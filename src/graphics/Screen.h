@@ -754,6 +754,8 @@ class Screen : public concurrency::OSThread
     bool showingNormalScreen = false;
     /// Track USB power state to only wake screen on actual power state changes
     bool lastPowerUSBState = false;
+    /// Track battery detection state — rebuild frames when it changes
+    bool lastHasBatteryState = false;
 
     // Implementation to Adjust Brightness
     uint8_t brightness = BRIGHTNESS_DEFAULT; // H = 254, MH = 192, ML = 130 L = 103

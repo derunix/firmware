@@ -145,11 +145,14 @@ void drawCommonHeader(OLEDDisplay *display, int16_t x, int16_t y, const char *ti
             // Home screen (no title text): show only voltage in center title area.
             // % is already shown on the left side — no duplication.
             // Use getBatteryVoltageMv() directly — always reliable, no tracker needed.
+            static int cachedVoltMv = 0;
             int voltMv = powerStatus->getBatteryVoltageMv();
-            if (voltMv > 100) {
+            if (voltMv > 100)
+                cachedVoltMv = voltMv;
+            if (cachedVoltMv > 100) {
                 char centerStr[12];
                 snprintf(centerStr, sizeof(centerStr), "%d.%02dV",
-                         voltMv / 1000, (voltMv % 1000) / 10);
+                         cachedVoltMv / 1000, (cachedVoltMv % 1000) / 10);
                 display->drawString(SCREEN_WIDTH / 2, y, centerStr);
             }
         }

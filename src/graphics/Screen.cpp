@@ -1692,6 +1692,7 @@ int Screen::handleInputEvent(const InputEvent *event)
         static OverlayCallback overlays[] = {graphics::UIRenderer::drawNavigationBar, NotificationRenderer::drawBannercallback};
         ui->setOverlays(overlays, sizeof(overlays) / sizeof(overlays[0]));
         setFastFramerate(); // Draw ASAP
+        ui->getUiState()->lastUpdate = 0; // Force immediate draw so overlay processes input this cycle
         ui->update();
 
         menuHandler::handleMenuSwitch(dispdev);

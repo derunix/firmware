@@ -362,6 +362,12 @@ int32_t KbI2cBase::runOnce()
             TCAKeyboard.trigger();
         }
         TCAKeyboard.clearInt();
+        // After clearing the interrupt, check if new events arrived during dispatch.
+        // If so, process them immediately rather than waiting for the next poll tick.
+        TCAKeyboard.trigger();
+        if (TCAKeyboard.hasEvent()) {
+            return 0;
+        }
         break;
     }
     case 0x02: {
@@ -545,7 +551,7 @@ int32_t KbI2cBase::runOnce()
     default:
         LOG_WARN("Unknown kb_model 0x%02x", kb_model);
     }
-    return 300;
+    return 30;
 }
 
 void KbI2cBase::toggleBacklight(bool on)

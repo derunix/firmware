@@ -338,7 +338,12 @@ class AnalogBatteryLevel : public HasBatteryLevel
 #endif
             battery_adcDisable();
 
-            if (!initial_read_done) {
+            if (scaled < 100.0f) {
+                // ADC returned 0 — all samples failed (e.g. Wi-Fi AFE calibration
+                // briefly blocks ADC reads on ESP32-S3). Discard the reading so the
+                // LPF does not decay toward zero and falsely report "no battery".
+                LOG_DEBUG("Battery: ADC glitch (scaled=%.0f mV), keeping last=%.0f mV", scaled, last_read_value);
+            } else if (!initial_read_done) {
                 // Flush the smoothing filter with an ADC reading, if the reading is
                 // plausibly correct
                 if (scaled > last_read_value)
