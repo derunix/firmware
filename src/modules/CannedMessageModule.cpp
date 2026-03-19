@@ -202,6 +202,37 @@ void CannedMessageModule::LaunchFreetextWithDestination(NodeNum newDest, uint8_t
 }
 
 static bool returnToCannedList = false;
+
+// Opens the destination picker (node/channel selection) directly.
+// Called via Tab shortcut or when no previous destination is known.
+void CannedMessageModule::LaunchDestinationPicker()
+{
+    destIndex = 0;
+    scrollIndex = 0;
+    searchQuery = "";
+    returnToCannedList = false;
+    updateDestinationSelectionList();
+    updateState(CANNED_MESSAGE_RUN_STATE_DESTINATION_SELECTION, true);
+    UIFrameEvent e;
+    e.action = UIFrameEvent::Action::REGENERATE_FRAMESET;
+    notifyObservers(&e);
+    if (screen)
+        screen->forceDisplay();
+    LOG_DEBUG("[CannedMessage] LaunchDestinationPicker");
+}
+
+// For physical-keyboard devices: Enter on the message screen.
+// Jumps straight to freetext compose reusing the last conversation,
+// or opens the destination picker when no previous destination is known.
+void CannedMessageModule::LaunchSmartCompose()
+{
+    if (lastDestSet) {
+        LaunchFreetextWithDestination(lastDest, lastChannel);
+    } else {
+        LaunchDestinationPicker();
+    }
+}
+
 bool hasKeyForNode(const meshtastic_NodeInfoLite *node)
 {
     return node && node->has_user && node->user.public_key.size > 0;
@@ -427,6 +458,14 @@ int CannedMessageModule::handleInputEvent(const InputEvent *event)
             LaunchWithDestination(NODENUM_BROADCAST);
             return 1;
         }
+#if defined(HAS_PHYSICAL_KEYBOARD)
+        // On physical-keyboard devices Enter always opens compose (or the
+        // destination picker when no conversation has been started yet).
+        if (event->inputEvent == INPUT_BROKER_SELECT) {
+            LaunchSmartCompose();
+            return 1;
+        }
+#endif
         // Printable char (ASCII) opens free text compose
         if (event->kbchar >= 32 && event->kbchar <= 126) {
             updateState(CANNED_MESSAGE_RUN_STATE_FREETEXT, true);
@@ -491,18 +530,14 @@ bool CannedMessageModule::handleTabSwitch(const InputEvent *event)
     if (event->kbchar != 0x09)
         return false;
 
-    updateState((runState == CANNED_MESSAGE_RUN_STATE_DESTINATION_SELECTION) ? CANNED_MESSAGE_RUN_STATE_FREETEXT
-                                                                             : CANNED_MESSAGE_RUN_STATE_DESTINATION_SELECTION);
-
-    destIndex = 0;
-    scrollIndex = 0;
-    // RESTORE THIS!
-    if (runState == CANNED_MESSAGE_RUN_STATE_DESTINATION_SELECTION)
-        updateDestinationSelectionList();
-
-    updateState((runState == CANNED_MESSAGE_RUN_STATE_DESTINATION_SELECTION) ? CANNED_MESSAGE_RUN_STATE_FREETEXT
-                                                                             : CANNED_MESSAGE_RUN_STATE_DESTINATION_SELECTION,
-                true);
+    if (runState == CANNED_MESSAGE_RUN_STATE_DESTINATION_SELECTION) {
+        // Currently picking a destination → go back to compose
+        updateState(CANNED_MESSAGE_RUN_STATE_FREETEXT, true);
+    } else {
+        // From any other state (inactive, freetext, active…) → open destination picker
+        LaunchDestinationPicker();
+        return true; // LaunchDestinationPicker fires its own UIFrameEvent
+    }
 
     UIFrameEvent e;
     e.action = UIFrameEvent::Action::REGENERATE_FRAMESET;

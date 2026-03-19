@@ -1475,6 +1475,12 @@ int Screen::handleStatusUpdate(const meshtastic::Status *arg)
             lastPowerUSBState = currentUSB;
             forceDisplay(true);
         }
+        bool currentHasBattery = powerStatus->getHasBattery();
+        if (currentHasBattery != lastHasBatteryState) {
+            lastHasBatteryState = currentHasBattery;
+            if (showingNormalScreen)
+                setFrames(FOCUS_PRESERVE);
+        }
         break;
     }
     }
@@ -1713,6 +1719,14 @@ int Screen::handleInputEvent(const InputEvent *event)
                 return 0;
             }
         }
+
+#if defined(HAS_PHYSICAL_KEYBOARD)
+        // Tab opens the destination picker directly from the message screen
+        if (event->kbchar == INPUT_BROKER_MSG_TAB) {
+            cannedMessageModule->LaunchDestinationPicker();
+            return 0;
+        }
+#endif
     }
     // UP/DOWN in node list screens scrolls through node pages
     if (ui->getUiState()->currentFrame == framesetInfo.positions.nodelist_nodes ||
@@ -1813,6 +1827,12 @@ int Screen::handleInputEvent(const InputEvent *event)
                 } else if (this->ui->getUiState()->currentFrame == framesetInfo.positions.lora) {
                     menuHandler::loraMenu();
                 } else if (this->ui->getUiState()->currentFrame == framesetInfo.positions.textMessage) {
+#if defined(HAS_PHYSICAL_KEYBOARD)
+                    // Physical keyboard: Enter jumps straight into compose mode.
+                    // Reuses the last conversation, or opens the destination picker
+                    // when no previous destination is known.
+                    cannedMessageModule->LaunchSmartCompose();
+#else
                     if (!messageStore.getMessages().empty()) {
                         menuHandler::messageResponseMenu();
                     } else {
@@ -1822,6 +1842,7 @@ int Screen::handleInputEvent(const InputEvent *event)
                             menuHandler::textMessageBaseMenu();
                         }
                     }
+#endif
                 } else if (framesetInfo.positions.firstFavorite != 255 &&
                            this->ui->getUiState()->currentFrame >= framesetInfo.positions.firstFavorite &&
                            this->ui->getUiState()->currentFrame <= framesetInfo.positions.lastFavorite) {

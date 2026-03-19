@@ -57,6 +57,10 @@ class CannedMessageModule : public SinglePortModule, public Observable<const UIF
     void LaunchWithDestination(NodeNum, uint8_t newChannel = 0);
     void LaunchRepeatDestination();
     void LaunchFreetextWithDestination(NodeNum, uint8_t newChannel = 0);
+    // Opens the node/channel picker directly (physical-keyboard shortcut: Tab)
+    void LaunchDestinationPicker();
+    // Enter shortcut: compose to last conversation, or picker if none known yet
+    void LaunchSmartCompose();
 
     // === Emote Picker navigation ===
     int emotePickerIndex = 0; // Tracks currently selected emote in the picker
