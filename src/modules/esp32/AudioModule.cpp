@@ -1,5 +1,5 @@
 #include "configuration.h"
-#if defined(ARCH_ESP32) && defined(USE_SX1280)
+#if defined(ARCH_ESP32) && (defined(USE_SX1280) || defined(M5STACK_CARDPUTER_ADV))
 #include "AudioModule.h"
 #include "FSCommon.h"
 #include "MeshService.h"
@@ -100,6 +100,20 @@ AudioModule::AudioModule() : SinglePortModule("Audio", meshtastic_PortNum_AUDIO_
     // moduleConfig.audio.i2s_sck = 14;
     // moduleConfig.audio.ptt_pin = 39;
 
+#ifdef M5STACK_CARDPUTER_ADV
+    // Apply hardware defaults if the user has not configured audio pins via the admin interface
+    if (!moduleConfig.audio.i2s_sck)
+        moduleConfig.audio.i2s_sck = DAC_I2S_BCK;
+    if (!moduleConfig.audio.i2s_ws)
+        moduleConfig.audio.i2s_ws = DAC_I2S_WS;
+    if (!moduleConfig.audio.i2s_sd)
+        moduleConfig.audio.i2s_sd = DAC_I2S_DIN; // mic in
+    if (!moduleConfig.audio.i2s_din)
+        moduleConfig.audio.i2s_din = DAC_I2S_DOUT; // speaker out
+    if (!moduleConfig.audio.ptt_pin)
+        moduleConfig.audio.ptt_pin = BUTTON_PIN;
+#endif
+
     if ((moduleConfig.audio.codec2_enabled) && (myRegion->audioPermitted)) {
         LOG_INFO("Set up codec2 in mode %u", (moduleConfig.audio.bitrate ? moduleConfig.audio.bitrate : AUDIO_MODULE_MODE) - 1);
         codec2 = codec2_create((moduleConfig.audio.bitrate ? moduleConfig.audio.bitrate : AUDIO_MODULE_MODE) - 1);
@@ -162,6 +176,11 @@ int32_t AudioModule::runOnce()
                                        .tx_desc_auto_clear = true,
                                        .fixed_mclk = 0};
             res = i2s_driver_install(I2S_PORT, &i2s_config, 0, NULL);
+#ifdef M5STACK_CARDPUTER_ADV
+            // lateInitVariant() already installed the I2S driver via arduino-audio-driver; treat as success
+            if (res == ESP_ERR_INVALID_STATE)
+                res = ESP_OK;
+#endif
             if (res != ESP_OK) {
                 LOG_ERROR("Failed to install I2S driver: %d", res);
             }
@@ -191,7 +210,14 @@ int32_t AudioModule::runOnce()
         } else {
             UIFrameEvent e;
             // Check if PTT is pressed. TODO hook that into Onebutton/Interrupt drive.
-            if (digitalRead(moduleConfig.audio.ptt_pin ? moduleConfig.audio.ptt_pin : PTT_PIN) == HIGH) {
+            uint8_t ptt_pin_used = moduleConfig.audio.ptt_pin ? moduleConfig.audio.ptt_pin : PTT_PIN;
+#ifdef M5STACK_CARDPUTER_ADV
+            // BUTTON_PIN (GPIO0) on Cardputer-Adv is active-LOW
+            bool pttPressed = (digitalRead(ptt_pin_used) == LOW);
+#else
+            bool pttPressed = (digitalRead(ptt_pin_used) == HIGH);
+#endif
+            if (pttPressed) {
                 if (radio_state == RadioState::rx) {
                     LOG_INFO("PTT pressed, switching to TX");
                     radio_state = RadioState::tx;

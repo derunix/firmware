@@ -76,7 +76,7 @@
 #endif
 
 #ifdef ARCH_ESP32
-#if defined(USE_SX1280) && !MESHTASTIC_EXCLUDE_AUDIO
+#if (defined(USE_SX1280) || defined(M5STACK_CARDPUTER_ADV)) && !MESHTASTIC_EXCLUDE_AUDIO
 #include "modules/esp32/AudioModule.h"
 #endif
 #if !MESHTASTIC_EXCLUDE_PAXCOUNTER
@@ -237,7 +237,7 @@ void setupModules()
 #endif
 #ifdef ARCH_ESP32
     // Only run on an esp32 based device.
-#if defined(USE_SX1280) && !MESHTASTIC_EXCLUDE_AUDIO
+#if (defined(USE_SX1280) || defined(M5STACK_CARDPUTER_ADV)) && !MESHTASTIC_EXCLUDE_AUDIO
     audioModule = new AudioModule();
 #endif
 #if !MESHTASTIC_EXCLUDE_PAXCOUNTER
